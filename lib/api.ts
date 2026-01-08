@@ -75,6 +75,7 @@ export async function getTasks(limit = 50, offset = 0): Promise<Task[]> {
   const response = await fetch(`${API_BASE_URL}/tasks?limit=${limit}&offset=${offset}`)
   if (!response.ok) throw new Error("Failed to fetch tasks")
   const data = await response.json()
+  console.log('Tasks API response:', data)
   return data.tasks
 }
 

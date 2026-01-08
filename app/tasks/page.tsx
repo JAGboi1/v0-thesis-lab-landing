@@ -174,8 +174,14 @@ export default function TasksPage() {
                     </span>
                     <span className="text-cyan-400/80 font-bold">Budget: {task.total_budget}</span>
                   </div>
-                  <button className="w-full sm:w-auto px-4 md:px-6 py-2 md:py-3 bg-cyan-400 text-[#050a08] rounded-lg font-black tracking-wide hover:bg-cyan-300 transition text-xs md:text-sm">
-                    VIEW DETAILS
+                  <button 
+                    className="w-full sm:w-auto px-4 md:px-6 py-2 md:py-3 bg-cyan-400 text-[#050a08] rounded-lg font-black tracking-wide hover:bg-cyan-300 transition text-xs md:text-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/tasks/${task.id}`);
+                    }}
+                  >
+                    RUN TASK
                   </button>
                 </div>
               </div>

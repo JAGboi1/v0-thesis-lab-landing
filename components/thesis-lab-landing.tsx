@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Zap, Users, Briefcase, CheckCircle, TrendingUp, Award, Code, ArrowRight } from "lucide-react"
+import { Zap, Users, Briefcase, CheckCircle, TrendingUp, Award, Code, ArrowRight, Wallet } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { getTasks, type Task } from "@/lib/api"
 
 const ThesisLabLanding = () => {
@@ -11,6 +12,7 @@ const ThesisLabLanding = () => {
   const [tasks, setTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(true)
   const [tasksError, setTasksError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     setAnimateHero(true)
@@ -100,18 +102,22 @@ const ThesisLabLanding = () => {
           >
             BUILDERS
           </a>
-          <a
-            href="#evaluators"
+          <Link
+            href="/evaluators"
             className="text-cyan-300/80 hover:text-cyan-400 transition font-bold text-sm tracking-wide"
           >
             EVALUATORS
-          </a>
+          </Link>
           <a href="#tasks" className="text-cyan-300/80 hover:text-cyan-400 transition font-bold text-sm tracking-wide">
             TASKS
           </a>
-          <button className="px-6 py-2.5 bg-cyan-400 text-[#040806] rounded-lg font-black text-sm tracking-wide hover:bg-cyan-300 transition">
-            LAUNCH APP
-          </button>
+          <Link
+            href="/evaluators"
+            className="px-6 py-2.5 bg-cyan-400 text-[#040806] rounded-lg font-black text-sm tracking-wide hover:bg-cyan-300 transition flex items-center"
+          >
+            <Wallet className="w-4 h-4 mr-2" />
+            CONNECT WALLET
+          </Link>
         </div>
       </nav>
 
@@ -135,8 +141,8 @@ const ThesisLabLanding = () => {
             Builders post AI tasks. Evaluators earn real token upside. All verified on-chain.
           </p>
           <div className="flex items-center justify-center space-x-4">
-            <button
-              onClick={() => document.getElementById("tasks")?.scrollIntoView({ behavior: "smooth" })}
+            <button 
+              onClick={() => router.push('/evaluators')}
               className="px-8 py-3 bg-cyan-400 text-[#040806] rounded-lg font-black text-lg tracking-wide hover:bg-cyan-300 transition"
             >
               START MINING
