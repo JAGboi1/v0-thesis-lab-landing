@@ -19,7 +19,7 @@ export const metadata: Metadata = {
         media: "(prefers-color-scheme: light)",
       },
     ],
-    apple: "/apple-icon.png",
+    apple: '/apple-icon.png',
   },
   themeColor: "#000000",
   manifest: "/site.webmanifest",
