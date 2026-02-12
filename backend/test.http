@@ -1,0 +1,20 @@
+### Health Check
+GET http://localhost:8000/health
+
+### Test Endpoint
+GET http://localhost:8000/test
+
+### Create Task (example)
+POST http://localhost:8000/tasks/create
+Content-Type: application/json
+
+{
+  "title": "Test Task",
+  "description": "This is a test task",
+  "task_type": "evaluation",
+  "difficulty_level": "easy",
+  "reward_per_submission": 10.0,
+  "total_budget": 100.0,
+  "verification_criteria": {},
+  "instructions": {}
+}

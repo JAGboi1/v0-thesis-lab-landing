@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: thesis-lab-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SUPABASE_URL
+        required: true
+      - key: SUPABASE_KEY
+        required: true
+      - key: ANTHROPIC_API_KEY
+        required: true
+      - key: DYNAMIC_ENVIRONMENT_ID
+        value: e6982590-9da1-47c0-9bf1-3d94d8834422
+        required: true
