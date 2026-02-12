@@ -2,6 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core'
+import { EthereumWalletConnectors } from '@dynamic-labs/ethereum'
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -38,8 +40,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`font-sans antialiased`}>
-        {children}
-        <Analytics />
+        <DynamicContextProvider
+          settings={{
+            environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID!,
+            walletConnectors: [EthereumWalletConnectors],
+          }}
+        >
+          {children}
+          <Analytics />
+        </DynamicContextProvider>
       </body>
     </html>
   )
