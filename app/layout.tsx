@@ -2,14 +2,13 @@
 
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
+import { GeistProvider, CssBaseline } from "@geist-ui/core"
 import { Analytics } from "@vercel/analytics/next"
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core"
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum"
 import "./globals.css"
-
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Thesis Lab - AI Evaluation Mining Platform",
@@ -40,31 +39,33 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} dark`}>
       <body className="font-sans antialiased">
-        <DynamicContextProvider
-          settings={{
-            environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID!,
-            walletConnectors: [EthereumWalletConnectors],
-            // Optional: customize the Dynamic modal appearance
-            cssOverrides: `
-              .dynamic-widget-inline-controls {
-                background: transparent;
-              }
-              .dynamic-widget-card {
-                background: #0a1411;
-                border: 2px solid rgba(0, 255, 255, 0.3);
-                border-radius: 16px;
-              }
-              .dynamic-widget-modal {
-                background: #050a08;
-              }
-            `,
-          }}
-        >
-          {children}
-          <Analytics />
-        </DynamicContextProvider>
+        <GeistProvider>
+          <CssBaseline />
+          <DynamicContextProvider
+            settings={{
+              environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || "",
+              walletConnectors: [EthereumWalletConnectors],
+              cssOverrides: `
+                .dynamic-widget-inline-controls {
+                  background: transparent;
+                }
+                .dynamic-widget-card {
+                  background: #0a1411;
+                  border: 2px solid rgba(0, 255, 255, 0.3);
+                  border-radius: 16px;
+                }
+                .dynamic-widget-modal {
+                  background: #050a08;
+                }
+              `,
+            }}
+          >
+            {children}
+            <Analytics />
+          </DynamicContextProvider>
+        </GeistProvider>
       </body>
     </html>
   )
