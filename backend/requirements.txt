@@ -1,25 +1,30 @@
-# FastAPI Backend Dependencies
-# Thesis Lab - AI Evaluation Mining Platform
+# Thesis Lab Backend - Minimal Dependencies (No Conflicts)
+# Install only what's needed for basic operation
 
 # Core Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
-pydantic==2.5.3
 
-# HTTP & Networking
+# Database
+supabase==2.9.0
+
+# AI
+anthropic==0.40.0
+
+# HTTP Client
 httpx==0.26.0
-python-multipart==0.0.6
 
 # Environment Variables
 python-dotenv==1.0.0
 
-# Date/Time
+# Auth (if needed)
+python-jose[cryptography]==3.3.0
+
+# File uploads
+python-multipart==0.0.6
+
+# Date handling
 python-dateutil==2.8.2
 
-# Utilities - DO NOT PIN VERSION (let pip resolve)
-typing-extensions>=4.12.2
-
-# Auth dependencies
-python-jose[cryptography]==3.3.0
-anthropic==0.40.0
-supabase==2.9.0
+# Let pip resolve typing-extensions automatically
+# DO NOT pin the version - it will be resolved by other packages
