@@ -3,14 +3,12 @@ Thesis Lab Backend API
 AI Evaluation Mining Platform
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 from datetime import datetime
-from starlette.middleware.base import BaseHTTPMiddleware
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -19,30 +17,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Custom CORS Middleware to ensure headers are always sent
-class CustomCORSMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        
-        # Add CORS headers to every response
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        
-        return response
-
-# Add custom CORS middleware first
-app.add_middleware(CustomCORSMiddleware)
-
-# FastAPI CORS middleware as backup
+# CORS Configuration - CRITICAL FOR VERCEL CONNECTION
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://v0-thesis-lab-landing.vercel.app",
+        "https://*.vercel.app",  # Allow all Vercel preview deployments
+        "*",  # TEMPORARY - Remove in production and list specific domains
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # ============================================
@@ -78,19 +65,18 @@ class Submission(BaseModel):
 @app.get("/")
 async def root():
     """Root endpoint"""
-    response = {
+    return {
         "name": "Thesis Lab API",
         "version": "1.0.0",
         "status": "online",
         "endpoints": {
             "health": "/health",
             "docs": "/docs",
-            "tasks": "/tasks",
-            "tasks_detail": "/tasks/{task_id}",
+            "tasks": "/api/tasks",
+            "tasks_detail": "/api/tasks/{task_id}",
             "submit": "/api/submit"
         }
     }
-    return response
 
 @app.get("/health")
 async def health_check():
@@ -161,7 +147,7 @@ MOCK_TASKS = [
     }
 ]
 
-@app.get("/tasks")
+@app.get("/api/tasks")
 async def get_tasks(
     limit: int = 10,
     offset: int = 0,
@@ -195,7 +181,7 @@ async def get_tasks(
         "offset": offset
     }
 
-@app.get("/tasks/{task_id}")
+@app.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
     """Get a specific task by ID"""
     
