@@ -56,6 +56,16 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "ok", "timestamp": datetime.utcnow()}
 
+@app.get("/test-connection")
+async def test_connection():
+    """Simple connection test endpoint"""
+    return {
+        "status": "success",
+        "message": "Backend is running and accessible",
+        "timestamp": datetime.utcnow(),
+        "service": "v0-thesis-lab-landing-production.up.railway.app"
+    }
+
 @app.get("/test")
 async def test_endpoint():
     """Simple test endpoint to verify API is working"""
