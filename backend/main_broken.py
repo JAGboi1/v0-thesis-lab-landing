@@ -3,12 +3,14 @@ Thesis Lab Backend API
 AI Evaluation Mining Platform
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 from datetime import datetime
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -17,7 +19,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# FastAPI CORS middleware - properly configured
+# Custom CORS Middleware to ensure headers are always sent
+class CustomCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Add CORS headers to every response
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
+
+# Add custom CORS middleware first
+app.add_middleware(CustomCORSMiddleware)
+
+# FastAPI CORS middleware as backup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,7 +78,7 @@ class Submission(BaseModel):
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {
+    response = {
         "name": "Thesis Lab API",
         "version": "1.0.0",
         "status": "online",
@@ -72,6 +90,7 @@ async def root():
             "submit": "/api/submit"
         }
     }
+    return response
 
 @app.get("/health")
 async def health_check():
