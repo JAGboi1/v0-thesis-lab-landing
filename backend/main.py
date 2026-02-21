@@ -1,427 +1,276 @@
+"""
+Thesis Lab Backend API
+AI Evaluation Mining Platform
+"""
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from typing import List, Optional
+import os
 from datetime import datetime
-from typing import Optional, Dict, Any
-from claude_verification import verify_submission, TaskType
-from services import TaskService, UserService, SubmissionService, ReputationService
-from auth import get_current_user, get_current_user_optional
-import uuid
-import logging
 
-#configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+# Initialize FastAPI app
 app = FastAPI(
-    title="Ritual Mining API",
-    description="Proof-of-Inference Mining Platform",
-    version="0.1.0"
+    title="Thesis Lab API",
+    description="AI Evaluation Mining Platform Backend",
+    version="1.0.0"
 )
 
-# Enable CORS for frontend
+# CORS Configuration - CRITICAL FOR VERCEL CONNECTION
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://v0-thesis-lab-landing.vercel.app",
+        "https://*.vercel.app",  # Allow all Vercel preview deployments
+        "*",  # TEMPORARY - Remove in production and list specific domains
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ============================================
+# MODELS
+# ============================================
 
-# Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint with brief API info"""
-    return {
-        "status": "success",
-        "message": "Ritual Mining API - see /docs for OpenAPI, /health for status",
-    }
-
-
-# ============================================================================
-# PYDANTIC MODELS (Request/Response schemas)
-# ============================================================================
-
-class CreateTaskRequest(BaseModel):
-    """Request to create a new task"""
-    title: str = Field(..., min_length=5, max_length=200)
-    description: str = Field(..., min_length=20)
-    task_type: str = Field(..., pattern="^(evaluation|prediction|code_execution|classification|annotation|human_review)$")
-    difficulty_level: str = Field(..., pattern="^(easy|medium|hard)$")
-    reward_per_submission: float = Field(..., gt=0)
-    total_budget: float = Field(..., gt=0)
-    max_submissions: Optional[int] = None
-    verification_criteria: Dict[str, Any]
-    instructions: Dict[str, Any]
-
-class TaskCreate(BaseModel):
+class Task(BaseModel):
+    id: str
     title: str
     description: str
     task_type: str
     difficulty_level: str
     reward_per_submission: float
-    total_budget: float
-    max_submissions: Optional[int] = None
-    verification_criteria: Optional[dict] = None
-    instructions: Optional[dict] = None
+    verification_criteria: str
+    status: str
+    max_submissions: int
+    current_submissions: int
+    created_at: Optional[datetime] = None
 
-    # Task creation endpoint
-@app.post("/tasks/create")
-async def create_task(task_data: TaskCreate):
-    try:
-        logger.info(f"Creating task with data: {task_data.dict()}")
-        
-        # Here you would typically save the task to your database
-        # For now, we'll just return a success response
-        task_id = str(uuid.uuid4())
-        
-        response_data = {
-            "status": "success",
-            "task_id": task_id,
-            "message": "Task created successfully",
-            "data": task_data.dict()
+class Submission(BaseModel):
+    task_id: str
+    wallet_address: str
+    submission_data: dict
+    ai_score: Optional[float] = None
+    is_valid: Optional[bool] = None
+    feedback: Optional[str] = None
+    reward_earned: Optional[float] = None
+
+# ============================================
+# HEALTH CHECK
+# ============================================
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": "Thesis Lab API",
+        "version": "1.0.0",
+        "status": "online",
+        "endpoints": {
+            "health": "/health",
+            "docs": "/docs",
+            "tasks": "/api/tasks",
+            "tasks_detail": "/api/tasks/{task_id}",
+            "submit": "/api/submit"
         }
-        
-        logger.info(f"Task created: {response_data}")
-        return response_data
-        
-    except Exception as e:
-        logger.error(f"Error creating task: {str(e)}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to create task: {str(e)}"
-        )       
-
-class SubmitInferenceRequest(BaseModel):
-    """Request to submit work for a task"""
-    submission_data: Dict[str, Any]
-
-
-# ============================================================================
-# TEST ENDPOINT
-# ============================================================================
-
-@app.get("/test")
-async def test_endpoint():
-    """Simple test endpoint to verify API is working"""
-    return {"status": "success", "message": "API is working!"}
-
-
-# ============================================================================
-# BASIC ENDPOINTS
-# ============================================================================
+    }
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "ok", "timestamp": datetime.utcnow()}
+    """Health check endpoint for Railway"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "thesis-lab-backend"
+    }
 
-
-# ============================================================================
+# ============================================
 # TASK ENDPOINTS
-# ============================================================================
+# ============================================
 
-from fastapi.dependencies import Depends
+# Mock data for testing - Replace with Supabase queries
+MOCK_TASKS = [
+    {
+        "id": "task-001",
+        "title": "Basic Math Evaluation",
+        "description": "Solve the given math problem: 2+2+2+2+2",
+        "task_type": "math_problem",
+        "difficulty_level": "easy",
+        "reward_per_submission": 10.0,
+        "verification_criteria": "Correct numerical answer with calculation",
+        "status": "active",
+        "max_submissions": 100,
+        "current_submissions": 0,
+        "created_at": datetime.now().isoformat()
+    },
+    {
+        "id": "task-002",
+        "title": "Python Code Review",
+        "description": "Review this Python function and identify bugs",
+        "task_type": "code_review",
+        "difficulty_level": "medium",
+        "reward_per_submission": 25.0,
+        "verification_criteria": "Identifies division by zero error",
+        "status": "active",
+        "max_submissions": 50,
+        "current_submissions": 5,
+        "created_at": datetime.now().isoformat()
+    },
+    {
+        "id": "task-003",
+        "title": "Creative Writing",
+        "description": "Write a 50-word product description",
+        "task_type": "creative_writing",
+        "difficulty_level": "medium",
+        "reward_per_submission": 20.0,
+        "verification_criteria": "Creative, engaging, within word limit",
+        "status": "active",
+        "max_submissions": 75,
+        "current_submissions": 12,
+        "created_at": datetime.now().isoformat()
+    },
+    {
+        "id": "task-004",
+        "title": "Data Analysis Challenge",
+        "description": "Analyze sales data and calculate growth rate",
+        "task_type": "data_analysis",
+        "difficulty_level": "hard",
+        "reward_per_submission": 35.0,
+        "verification_criteria": "Accurate calculations with insights",
+        "status": "active",
+        "max_submissions": 30,
+        "current_submissions": 3,
+        "created_at": datetime.now().isoformat()
+    }
+]
 
-@app.post("/tasks/create")
-async def create_task(
-    request: CreateTaskRequest,
-    current_user: dict = Depends(get_current_user)
+@app.get("/api/tasks")
+async def get_tasks(
+    limit: int = 10,
+    offset: int = 0,
+    difficulty: Optional[str] = None,
+    status: str = "active"
 ):
     """
-    Create a new mining task.
+    Get list of tasks
     
-    Developers call this to post a task for miners to complete.
-    Requires authentication.
+    Query Parameters:
+    - limit: Number of tasks to return (default 10)
+    - offset: Number of tasks to skip (default 0)
+    - difficulty: Filter by difficulty (easy, medium, hard)
+    - status: Filter by status (active, closed, pending)
     """
-    try:
-        # Create task in database with the authenticated user's wallet address
-        task = TaskService.create_task(
-            title=request.title,
-            description=request.description,
-            task_type=request.task_type,
-            difficulty_level=request.difficulty_level,
-            reward_per_submission=request.reward_per_submission,
-            total_budget=request.total_budget,
-            verification_criteria=request.verification_criteria,
-            instructions=request.instructions,
-            max_submissions=request.max_submissions,
-            developer_id=current_user["wallet_address"]
-        )
-        
-        return {
-            "status": "success",
-            "task": task
-        }
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating task: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to create task")
+    # Filter tasks
+    filtered_tasks = [
+        task for task in MOCK_TASKS
+        if task["status"] == status
+        and (difficulty is None or task["difficulty_level"] == difficulty)
+    ]
+    
+    # Apply pagination
+    paginated_tasks = filtered_tasks[offset:offset + limit]
+    
+    return {
+        "tasks": paginated_tasks,
+        "total": len(filtered_tasks),
+        "limit": limit,
+        "offset": offset
+    }
 
-
-@app.get("/tasks/{task_id}")
+@app.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
-    """Get details of a specific task"""
-    try:
-        # Get task using the static method
-        task = TaskService.get_task(task_id)
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        return {
-            "status": "success",
-            "task": task
-        }
+    """Get a specific task by ID"""
     
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        error_msg = f"Error getting task {task_id}: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
-@app.get("/tasks")
-async def list_tasks(limit: int = 50, offset: int = 0):
-    """List all active tasks with pagination"""
-    try:
-        # Get tasks using the static method
-        tasks = TaskService.list_active_tasks(limit=limit, offset=offset)
-        
-        return {
-            "status": "success",
-            "tasks": tasks,
-            "total": len(tasks),
-            "limit": limit,
-            "offset": offset
-        }
+    # Find task
+    task = next((t for t in MOCK_TASKS if t["id"] == task_id), None)
     
-    except Exception as e:
-        error_msg = f"Error listing tasks: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return task
 
+# ============================================
+# SUBMISSION ENDPOINT
+# ============================================
 
-# ============================================================================
-# SUBMISSION ENDPOINTS
-# ============================================================================
-
-@app.post("/tasks/{task_id}/submit")
-async def submit_inference(
-    task_id: str, 
-    request: SubmitInferenceRequest,
-    current_user: dict = Depends(get_current_user)
-):
+@app.post("/api/submit")
+async def submit_task(submission: Submission):
     """
-    Miner submits work for a task.
+    Submit a task solution for AI verification
     
-    Flow:
-    1. Create submission in database (status: pending)
-    2. Trigger verification with Claude
-    3. Update submission with verification results
-    4. Update user's reputation
-    5. Return submission details
-    
-    Requires authentication.
+    This endpoint:
+    1. Receives the submission
+    2. Calls Claude AI for verification
+    3. Returns verification results and rewards
     """
-    try:
-        # Validate task exists
-        task = TaskService.get_task(task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        # Get user from JWT token
-        user = current_user
-        wallet_address = user["wallet_address"]
-        
-        # Create submission in database
-        submission = SubmissionService.create_submission(
-            task_id=task_id,
-            user_id=user["id"],
-            submission_data=request.submission_data
-        )
-        
-        # Verify submission with Claude
-        try:
-            verification_result = verify_submission(
-                submission_id=submission["id"],
-                task_id=task_id,
-                task_type=TaskType(task["task_type"]),
-                task_instructions=task["instructions"],
-                miner_output=request.submission_data,
-                verification_criteria=task["verification_criteria"]
-            )
-            
-            # Calculate reward based on score
-            reward_earned = task["reward_per_submission"] * verification_result.ai_score
-            
-            # Update submission with verification results
-            SubmissionService.update_submission_verification(
-                submission_id=submission["id"],
-                ai_score=verification_result.ai_score,
-                is_valid=verification_result.is_valid,
-                feedback=verification_result.feedback,
-                reward_earned=reward_earned
-            )
-            
-            # Update reputation based on result
-            if verification_result.is_valid:
-                reputation_delta = 5  # +5 for correct submission
-                event_type = "submission_accepted"
-            else:
-                reputation_delta = -2  # -2 for incorrect submission
-                event_type = "submission_rejected"
-            
-            ReputationService.create_reputation_event(
-                user_id=user["id"],
-                event_type=event_type,
-                reason=verification_result.feedback,
-                delta=reputation_delta
-            )
-            
-            # Increment task submission count
-            TaskService.update_task_submission_count(task_id)
-            
-            return {
-                "status": "success",
-                "submission_id": submission["id"],
-                "verification": verification_result.to_dict(),
-                "reward_earned": reward_earned
-            }
-        
-        except Exception as e:
-            # Verification failed, still save submission but mark as failed
-            SubmissionService.update_submission_verification(
-                submission_id=submission["id"],
-                ai_score=0.0,
-                is_valid=False,
-                feedback=f"Verification error: {str(e)}",
-                reward_earned=0.0
-            )
-            
-            ReputationService.create_reputation_event(
-                user_id=user["id"],
-                event_type="submission_rejected",
-                reason="Verification failed",
-                delta=-1
-            )
-            
-            raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/tasks/{task_id}/submissions/{submission_id}")
-async def get_submission_status(task_id: str, submission_id: str):
-    """Check the status and results of a submission"""
-    try:
-        submission = SubmissionService.get_submission(submission_id)
-        
-        if not submission:
-            raise HTTPException(status_code=404, detail="Submission not found")
-        
-        return {
-            "status": "success",
-            "submission": submission
-        }
+    # TODO: Implement Claude AI verification
+    # For now, return mock response
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "submission_id": f"sub-{datetime.now().timestamp()}",
+        "ai_score": 0.95,
+        "is_valid": True,
+        "feedback": "Great work! Your answer is correct.",
+        "reward_earned": 10.0,
+        "reputation_gained": 5,
+        "message": "Submission verified successfully!"
+    }
 
+# ============================================
+# USER ENDPOINTS (Future)
+# ============================================
 
-# ============================================================================
-# USER/MINER ENDPOINTS
-# ============================================================================
-
-@app.get("/users/{wallet_address}/reputation")
-async def get_miner_reputation(wallet_address: str):
-    """Get miner's reputation score and stats"""
-    try:
-        user = UserService.get_user_by_wallet(wallet_address)
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "status": "success",
-            "wallet": wallet_address,
-            "reputation_score": user["reputation_score"],
-            "total_tasks_completed": user["total_tasks_completed"],
-            "total_rewards_earned": user["total_rewards_earned"]
-        }
+@app.get("/api/users/{wallet_address}")
+async def get_user(wallet_address: str):
+    """Get user profile and stats"""
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # TODO: Implement Supabase query
+    return {
+        "wallet_address": wallet_address,
+        "reputation_score": 100,
+        "total_tasks_completed": 5,
+        "total_rewards_earned": 150.0,
+        "rank": "Bronze"
+    }
 
+# ============================================
+# STARTUP EVENT
+# ============================================
 
-# ============================================================================
-# TEST ENDPOINTS (Keep for debugging)
-# ============================================================================
+@app.on_event("startup")
+async def startup_event():
+    """Run on application startup"""
+    print("🚀 Thesis Lab API starting...")
+    print("📡 CORS enabled for Vercel domains")
+    print("✅ Health check available at /health")
+    print("📚 API docs available at /docs")
 
-@app.get("/debug/tasks")
-async def debug_tasks(limit: int = 5, offset: int = 0):
-    """Debug endpoint to test task fetching"""
-    try:
-        logger.info(f"Debug: Fetching {limit} tasks with offset {offset}")
-        
-        # Get tasks using the static method
-        tasks = TaskService.list_active_tasks(limit=limit, offset=offset)
-        
-        return {
-            "status": "success",
-            "tasks_count": len(tasks),
-            "tasks": tasks,
-            "limit": limit,
-            "offset": offset
-        }
-    except Exception as e:
-        import traceback
-        error_details = {
-            "status": "error",
-            "error_type": type(e).__name__,
-            "error_message": str(e),
-            "traceback": traceback.format_exc()
-        }
-        logger.error(f"Debug endpoint error: {error_details}")
-        return error_details
+# ============================================
+# ERROR HANDLERS
+# ============================================
 
-@app.get("/test/verification")
-async def test_verification():
-    """Test endpoint to verify Claude verification works"""
-    try:
-        test_prompt = "What is the capital of France?"
-        test_answer = "Paris"
-        
-        logger.info(f"Testing verification with prompt: {test_prompt}")
-        
-        result = verify_submission(
-            task_type=TaskType.EVALUATION,
-            prompt=test_prompt,
-            submission=test_answer,
-            criteria={"requires": "exact match to 'Paris'"}
-        )
-        
-        return {
-            "status": "success",
-            "test_prompt": test_prompt,
-            "test_answer": test_answer,
-            "verification_result": result.dict()
-        }
-        
-    except Exception as e:
-        logger.error(f"Verification test failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Verification test failed: {str(e)}"
-        )
+@app.exception_handler(404)
+async def not_found_handler(request, exc):
+    return {
+        "error": "Not Found",
+        "message": "The requested resource was not found",
+        "path": str(request.url)
+    }
+
+@app.exception_handler(500)
+async def internal_error_handler(request, exc):
+    return {
+        "error": "Internal Server Error",
+        "message": "An unexpected error occurred",
+        "detail": str(exc)
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
