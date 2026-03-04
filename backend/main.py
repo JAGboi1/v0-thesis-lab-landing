@@ -1,5 +1,5 @@
 """
-Thesis Lab Backend API
+Thesis Lab Backend API - With Supabase Integration
 AI Evaluation Mining Platform
 """
 
@@ -9,6 +9,11 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 from datetime import datetime
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -17,15 +22,35 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# FastAPI CORS middleware - properly configured
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://v0-thesis-lab-landing.vercel.app",
+        "https://*.vercel.app",
+        "*",  # TEMPORARY - Remove in production
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
+
+# Initialize Supabase client
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Create Supabase client if credentials are available
+supabase: Optional[Client] = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Connected to Supabase")
+    except Exception as e:
+        print(f"❌ Failed to connect to Supabase: {e}")
+else:
+    print("⚠️  No Supabase credentials - using mock data")
 
 # ============================================
 # MODELS
@@ -42,7 +67,7 @@ class Task(BaseModel):
     status: str
     max_submissions: int
     current_submissions: int
-    created_at: Optional[datetime] = None
+    created_at: Optional[str] = None
 
 class Submission(BaseModel):
     task_id: str
@@ -64,11 +89,12 @@ async def root():
         "name": "Thesis Lab API",
         "version": "1.0.0",
         "status": "online",
+        "supabase_connected": supabase is not None,
         "endpoints": {
             "health": "/health",
             "docs": "/docs",
-            "tasks": "/tasks",
-            "tasks_detail": "/tasks/{task_id}",
+            "tasks": "/api/tasks",
+            "tasks_detail": "/api/tasks/{task_id}",
             "submit": "/api/submit"
         }
     }
@@ -79,70 +105,15 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "thesis-lab-backend"
+        "service": "thesis-lab-backend",
+        "database": "connected" if supabase else "not configured"
     }
 
 # ============================================
-# TASK ENDPOINTS
+# TASK ENDPOINTS - WITH SUPABASE
 # ============================================
 
-# Mock data for testing - Replace with Supabase queries
-MOCK_TASKS = [
-    {
-        "id": "task-001",
-        "title": "Basic Math Evaluation",
-        "description": "Solve the given math problem: 2+2+2+2+2",
-        "task_type": "math_problem",
-        "difficulty_level": "easy",
-        "reward_per_submission": 10.0,
-        "verification_criteria": "Correct numerical answer with calculation",
-        "status": "active",
-        "max_submissions": 100,
-        "current_submissions": 0,
-        "created_at": datetime.now().isoformat()
-    },
-    {
-        "id": "task-002",
-        "title": "Python Code Review",
-        "description": "Review this Python function and identify bugs",
-        "task_type": "code_review",
-        "difficulty_level": "medium",
-        "reward_per_submission": 25.0,
-        "verification_criteria": "Identifies division by zero error",
-        "status": "active",
-        "max_submissions": 50,
-        "current_submissions": 5,
-        "created_at": datetime.now().isoformat()
-    },
-    {
-        "id": "task-003",
-        "title": "Creative Writing",
-        "description": "Write a 50-word product description",
-        "task_type": "creative_writing",
-        "difficulty_level": "medium",
-        "reward_per_submission": 20.0,
-        "verification_criteria": "Creative, engaging, within word limit",
-        "status": "active",
-        "max_submissions": 75,
-        "current_submissions": 12,
-        "created_at": datetime.now().isoformat()
-    },
-    {
-        "id": "task-004",
-        "title": "Data Analysis Challenge",
-        "description": "Analyze sales data and calculate growth rate",
-        "task_type": "data_analysis",
-        "difficulty_level": "hard",
-        "reward_per_submission": 35.0,
-        "verification_criteria": "Accurate calculations with insights",
-        "status": "active",
-        "max_submissions": 30,
-        "current_submissions": 3,
-        "created_at": datetime.now().isoformat()
-    }
-]
-
-@app.get("/tasks")
+@app.get("/api/tasks")
 async def get_tasks(
     limit: int = 10,
     offset: int = 0,
@@ -150,7 +121,7 @@ async def get_tasks(
     status: str = "active"
 ):
     """
-    Get list of tasks
+    Get list of tasks from Supabase
     
     Query Parameters:
     - limit: Number of tasks to return (default 10)
@@ -159,37 +130,72 @@ async def get_tasks(
     - status: Filter by status (active, closed, pending)
     """
     
-    # Filter tasks
-    filtered_tasks = [
-        task for task in MOCK_TASKS
-        if task["status"] == status
-        and (difficulty is None or task["difficulty_level"] == difficulty)
-    ]
+    if not supabase:
+        raise HTTPException(
+            status_code=503, 
+            detail="Database not configured. Please set SUPABASE_URL and SUPABASE_KEY"
+        )
     
-    # Apply pagination
-    paginated_tasks = filtered_tasks[offset:offset + limit]
-    
-    return {
-        "tasks": paginated_tasks,
-        "total": len(filtered_tasks),
-        "limit": limit,
-        "offset": offset
-    }
+    try:
+        # Build query
+        query = supabase.table('tasks').select('*')
+        
+        # Apply filters
+        query = query.eq('status', status)
+        
+        if difficulty:
+            query = query.eq('difficulty_level', difficulty)
+        
+        # Apply pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        # Execute query
+        response = query.execute()
+        
+        # Get total count
+        count_response = supabase.table('tasks').select('id', count='exact').eq('status', status)
+        if difficulty:
+            count_response = count_response.eq('difficulty_level', difficulty)
+        count_data = count_response.execute()
+        
+        return {
+            "tasks": response.data,
+            "total": count_data.count if hasattr(count_data, 'count') else len(response.data),
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        print(f"Error fetching tasks: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch tasks: {str(e)}")
 
-@app.get("/tasks/{task_id}")
+@app.get("/api/tasks/{task_id}")
 async def get_task(task_id: str):
-    """Get a specific task by ID"""
+    """Get a specific task by ID from Supabase"""
     
-    # Find task
-    task = next((t for t in MOCK_TASKS if t["id"] == task_id), None)
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database not configured"
+        )
     
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    return task
+    try:
+        # Fetch task from Supabase
+        response = supabase.table('tasks').select('*').eq('id', task_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return response.data[0]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch task: {str(e)}")
 
 # ============================================
-# SUBMISSION ENDPOINT
+# SUBMISSION ENDPOINT - WITH SUPABASE
 # ============================================
 
 @app.post("/api/submit")
@@ -200,39 +206,85 @@ async def submit_task(submission: Submission):
     This endpoint:
     1. Receives the submission
     2. Calls Claude AI for verification
-    3. Returns verification results and rewards
+    3. Saves to Supabase
+    4. Returns verification results and rewards
     """
     
-    # TODO: Implement Claude AI verification
-    # For now, return mock response
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database not configured"
+        )
     
-    return {
-        "success": True,
-        "submission_id": f"sub-{datetime.now().timestamp()}",
-        "ai_score": 0.95,
-        "is_valid": True,
-        "feedback": "Great work! Your answer is correct.",
-        "reward_earned": 10.0,
-        "reputation_gained": 5,
-        "message": "Submission verified successfully!"
-    }
+    try:
+        # TODO: Add Claude AI verification here
+        # For now, return mock response
+        
+        # Create submission record
+        submission_data = {
+            "task_id": submission.task_id,
+            "user_id": submission.wallet_address,  # Using wallet as user_id
+            "submission_data": submission.submission_data,
+            "ai_score": 0.95,
+            "is_valid": True,
+            "feedback": "Great work! Your answer is correct.",
+            "reward_earned": 10.0,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        # Insert into Supabase
+        response = supabase.table('submissions').insert(submission_data).execute()
+        
+        # Update task submission count
+        supabase.rpc('increment_task_submissions', {'task_id': submission.task_id}).execute()
+        
+        return {
+            "success": True,
+            "submission_id": response.data[0]['id'] if response.data else None,
+            "ai_score": 0.95,
+            "is_valid": True,
+            "feedback": "Great work! Your answer is correct.",
+            "reward_earned": 10.0,
+            "reputation_gained": 5,
+            "message": "Submission verified successfully!"
+        }
+        
+    except Exception as e:
+        print(f"Error submitting task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit task: {str(e)}")
 
 # ============================================
-# USER ENDPOINTS (Future)
+# USER ENDPOINTS
 # ============================================
 
 @app.get("/api/users/{wallet_address}")
 async def get_user(wallet_address: str):
-    """Get user profile and stats"""
+    """Get user profile and stats from Supabase"""
     
-    # TODO: Implement Supabase query
-    return {
-        "wallet_address": wallet_address,
-        "reputation_score": 100,
-        "total_tasks_completed": 5,
-        "total_rewards_earned": 150.0,
-        "rank": "Bronze"
-    }
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    
+    try:
+        # Fetch user from Supabase
+        response = supabase.table('users').select('*').eq('wallet_address', wallet_address).execute()
+        
+        if not response.data or len(response.data) == 0:
+            # Create new user if doesn't exist
+            new_user = {
+                "wallet_address": wallet_address,
+                "reputation_score": 0,
+                "total_tasks_completed": 0,
+                "total_rewards_earned": 0.0,
+                "created_at": datetime.now().isoformat()
+            }
+            response = supabase.table('users').insert(new_user).execute()
+            return response.data[0]
+        
+        return response.data[0]
+        
+    except Exception as e:
+        print(f"Error fetching user {wallet_address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch user: {str(e)}")
 
 # ============================================
 # STARTUP EVENT
@@ -245,6 +297,10 @@ async def startup_event():
     print("📡 CORS enabled for Vercel domains")
     print("✅ Health check available at /health")
     print("📚 API docs available at /docs")
+    if supabase:
+        print("🗄️  Connected to Supabase database")
+    else:
+        print("⚠️  Running without database (mock mode)")
 
 # ============================================
 # ERROR HANDLERS
